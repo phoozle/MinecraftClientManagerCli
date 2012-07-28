@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+require "rubygems"
+require "bundler/setup"
+require 'xmlsimple'
+require 'open-uri'
+
+class MinecraftManager
+  require File.join File.dirname(__FILE__), 'version'
+  
+  def self.run
+    if ARGV[0] == "server" # Server mode (mincraft_server.jar)
+      Version.mode = :server
+      command = ARGV[1]
+      options = ARGV[2..-1]
+    else # client mode, this is default (mincraft.jar)
+      command = ARGV[0]
+      options = ARGV[1..-1]
+    end
+    self.send("cmd_"+command, options)
+  end
+  
+  private
+  
+  def self.cmd_use(options)
+    version_id = options[0]
+    version = Version.find(version_id)
+    download(version)
+  end
+  
+  def self.cmd_list(options)
+    filter = options[0]
+    if filter == "all"
+      versions = Version.all
+    elsif filter == "snapshots"
+      versions = Version.snapshots
+    elsif filter == "releases"
+      versions = Version.releases
+    else
+      puts "Usage: mcmgr [server] list all|snapshots|releases"
+    end
+    puts "== Avaiable Minecraft #{Version.mode.capitalize}s =="
+    versions.each {|r| puts "=* "+r.version} if versions
+  end
+  
+  def self.download(version)
+    puts "#> Downloading #{version.url}..."
+    File.open("/tmp/#{version.filename}", "wb") do |saved_file|
+      open(version.url) do |read_file|
+         saved_file.write(read_file.read)
+       end
+    end
+  end
+end
+
+MinecraftManager.run()
