@@ -3,20 +3,32 @@ require "rubygems"
 require "bundler/setup"
 require 'xmlsimple'
 require 'open-uri'
+require 'fileutils'
+require File.join File.dirname(__FILE__), 'colours'
+include Colours
 
 class MinecraftManager
   require File.join File.dirname(__FILE__), 'version'
   
   def self.run
     if ARGV[0] == "server" # Server mode (mincraft_server.jar)
+      # @MINECRAFT_INSTALLATION_BIN = "need to make this easily configurable for specific installations"
       Version.mode = :server
       command = ARGV[1]
       options = ARGV[2..-1]
     else # client mode, this is default (mincraft.jar)
+      @@MINECRAFT_INSTALLATION_BIN = "#{ENV["HOME"]}/Library/Application\ Support/minecraft/bin/minecraft.jar"
       command = ARGV[0]
       options = ARGV[1..-1]
     end
+    begin
     self.send("cmd_"+command, options)
+    rescue NoMethodError
+    puts "Usage:
+\s\smcmgr list [all|releases|snapshots]
+\s\smcmgr install [<version>|latest]
+\s\smcmgr restore"
+    end
   end
   
   private
@@ -24,7 +36,15 @@ class MinecraftManager
   def self.cmd_use(options)
     version_id = options[0]
     version = Version.find(version_id)
-    download(version)
+    current_version_size = File.size(@@MINECRAFT_INSTALLATION_BIN)
+    if current_version_size != version.size
+      download(version)
+      backup() if File.exists?(@@MINECRAFT_INSTALLATION_BIN)
+      install(version_id)
+    else
+      puts "> We detected that you are already using #{version.version}"
+      puts "Nothing to do!"
+    end
   end
   
   def self.cmd_list(options)
@@ -43,12 +63,40 @@ class MinecraftManager
   end
   
   def self.download(version)
-    puts "#> Downloading #{version.url}..."
+    puts "> Downloading #{version.url}..."
     File.open("/tmp/#{version.filename}", "wb") do |saved_file|
       open(version.url) do |read_file|
          saved_file.write(read_file.read)
        end
     end
+  end
+  
+  def self.backup
+    puts "> Backing up existing minecraft.jar..."
+    if File.exists?(@@MINECRAFT_INSTALLATION_BIN+".backup")
+      print "> #{red "[WARNING]"} Backup already exists, overwrite it? (y/n): "
+      answer = $stdin.gets
+      if answer.chomp == "y"
+        FileUtils.mv(@@MINECRAFT_INSTALLATION_BIN, @@MINECRAFT_INSTALLATION_BIN+".backup")
+      else
+        puts "> To prevent this happening again run #{green "`mcmgr restore`"}"
+        puts "Aborted"
+        exit
+      end
+    else
+      FileUtils.mv(@@MINECRAFT_INSTALLATION_BIN, @@MINECRAFT_INSTALLATION_BIN+".backup")
+    end
+  end
+  
+  def self.cmd_restore(*options)
+    FileUtils.mv(@@MINECRAFT_INSTALLATION_BIN+".backup", @@MINECRAFT_INSTALLATION_BIN)
+    puts "> Minecraft.jar has been restored to your previous version."
+  end
+  
+  def self.install(version_id)
+    FileUtils.mv("/tmp/minecraft.jar", @@MINECRAFT_INSTALLATION_BIN)
+    puts "> Installed #{version_id}!"
+    puts "  Note: run #{green "`mcmgr restore`"} to return to your previous installation (and mods)."
   end
 end
 

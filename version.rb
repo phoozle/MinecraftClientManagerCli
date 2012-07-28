@@ -9,7 +9,11 @@ class MinecraftManager::Version
   attr_reader :version, :url, :size, :last_modified, :filename
   
   def self.find(filter)
-    all.keep_if {|version| version.version =~ /^#{filter}$/}.first
+    if filter == "latest"
+      all.last
+    else
+      all.keep_if {|version| version.version =~ /^#{filter}$/}.first
+    end
   end
   
   def self.snapshots
